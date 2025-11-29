@@ -1,0 +1,15 @@
+{
+  "name": "websocket-proxy-server",
+  "version": "1.0.0",
+  "description": "WebSocket proxy server for Docker deployment",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
