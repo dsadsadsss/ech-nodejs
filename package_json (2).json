@@ -1,7 +1,7 @@
 {
-  "name": "websocket-proxy-server",
+  "name": "echtunel",
   "version": "1.0.0",
-  "description": "WebSocket代理服务器 - 支持TCP/UDP转发",
+  "description": "WebSocket",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -9,7 +9,6 @@
   },
   "keywords": [
     "websocket",
-    "proxy",
     "tcp",
     "udp"
   ],
