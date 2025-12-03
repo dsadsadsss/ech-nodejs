@@ -9,7 +9,7 @@ const { URL } = require('url');
 const crypto = require('crypto');
 
 // ======================== 环境变量配置 ========================
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 const WS_PATH = process.env.WS_PATH || '/ws';
 const TOKEN = process.env.TOKEN || '';
 const CIDRS = process.env.CIDRS || '0.0.0.0/0,::/0';
