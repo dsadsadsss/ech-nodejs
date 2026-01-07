@@ -1,0 +1,23 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "A Node.js app for web service, process monitoring and subscription management.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "express",
+    "process",
+    "monitoring",
+    "subscription"
+  ],
+  "author": "myself",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^2.0.6",
+    "request": "^2.88.2",
+      "axios": "^1.6.7"
+  }
+}
