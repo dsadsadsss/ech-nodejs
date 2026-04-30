@@ -1,7 +1,7 @@
 const port = process.env.SERVER_PORT || process.env.PORT || 3000;
 const vmms = process.env.VPATH || 'vls'; 
 const vmmport = process.env.EPORT || '8001';  //固定隧道端口
-const ekey = process.env.EKEY || 'ech123456';  // ech密钥，需ech-tunnel 客户端
+const ekey = process.env.EKEY || '123';  // ech密钥，需ech-tunnel 客户端
 const uuid = process.env.SUBPATH || '7a8a1de5-7d41-45e2-88fe-0f538b827169';  //订阅地址
 const youxuan = process.env.CF_IP || 'ip.sb';
 const sub_name = process.env.SUB_NAME || 'ech';   //节点名称
