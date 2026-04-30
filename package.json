@@ -1,15 +1,33 @@
 {
-  "name": "websocket-proxy-server",
+  "name": "ws-proxy",
   "version": "1.0.0",
-  "description": "WebSocket proxy server for Docker deployment",
+  "description": "WebSocket proxy server with web monitoring integration",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [
+    "websocket",
+    "monitoring",
+    "tcp",
+    "udp"
+  ],
+  "author": "wl",
+  "license": "MIT",
   "dependencies": {
-    "ws": "^8.14.2"
+    "axios": "^1.6.0",
+    "ws": "^8.14.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
   }
 }
