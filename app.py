@@ -16,7 +16,6 @@ CF_FALLBACK_IPS = (
 )
 
 DOH_SERVERS = [
-    'https://dns.google/dns-query',
     'https://cloudflare-dns.com/dns-query',
     'https://dns.alidns.com/dns-query',
 ]
