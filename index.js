@@ -6,4 +6,316 @@ const dns = require('dns').promises;
 
 const PORT = process.env.PORT || 3000;
 const TOKEN = process.env.TOKEN || '123';
-const _0x3b36eb=_0x18d2;(function(_0x26463f,_0x13158b){const _0x193dad=_0x18d2,_0x3c0b2c=_0x26463f();while(!![]){try{const _0x1bf7e2=-parseInt(_0x193dad(0xcd))/0x1+parseInt(_0x193dad(0xc8))/0x2*(-parseInt(_0x193dad(0x8d))/0x3)+-parseInt(_0x193dad(0x97))/0x4*(parseInt(_0x193dad(0xb9))/0x5)+-parseInt(_0x193dad(0xd6))/0x6+parseInt(_0x193dad(0xd0))/0x7*(-parseInt(_0x193dad(0xb0))/0x8)+-parseInt(_0x193dad(0x96))/0x9*(parseInt(_0x193dad(0xe2))/0xa)+-parseInt(_0x193dad(0xa7))/0xb*(-parseInt(_0x193dad(0x92))/0xc);if(_0x1bf7e2===_0x13158b)break;else _0x3c0b2c['push'](_0x3c0b2c['shift']());}catch(_0x306c42){_0x3c0b2c['push'](_0x3c0b2c['shift']());}}}(_0x1298,0xd568c));const CF_FALLBACK_IPS=process[_0x3b36eb(0xa8)][_0x3b36eb(0xab)]?process[_0x3b36eb(0xa8)][_0x3b36eb(0xab)]['split'](','):['ProxyIP.JP.CMLiussss.net'],DOH_SERVERS=[_0x3b36eb(0x8f),_0x3b36eb(0xc5),_0x3b36eb(0x8b)],dnsCache=new Map(),DNS_CACHE_TTL=0x493e0;function _0x1298(){const _0x1e2828=['DNS\x20Cache\x20TTL:\x20','substring','59004420LBSIAu','write','destroy','\x20(via\x20','198VTHPiK','1475336iMRMOB','createServer','\x20resolved\x20to\x20','DATA:','[System\x20DNS\x20Failed]\x20','data','toLowerCase','now','CONNECTED','destroyed','end','Failed\x20to\x20resolve\x20','writeHead','includes','cannot\x20connect','type','11jwLrhL','env','timestamp','/stats','PRIP','[DoH\x20Cache\x20Hit]\x20','enabled','0.0.0.0','error','351912pXEtdA','No\x20A\x20record\x20found','Hello-world','CONNECT:','readyState','isIP','proxy\x20request','\x20->\x20','catch','10QLjIdG','protocol','get','Answer','Not\x20Found','headers','startsWith','ERROR:','url','[DoH\x20Success]\x20','lastIndexOf','[DoH\x20Query]\x20Resolving\x20','https://cloudflare-dns.com/dns-query','resolve4','text/plain','2404460nhRrqD','log','timeout','once','Web\x20listening\x20on\x20port\x20','1215083VQjiIy','length','close','35glhNGP','CLOSE','send','Server','connect','application/dns-json','322602ZAdIeY','connection','DoH\x20Servers:\x20','...','[DoH\x20Fallback]\x20Using\x20system\x20DNS\x20for\x20','toString','message','Token\x20authentication:\x20','stringify','etimedout','set','application/json','279190aLEmML','indexOf','https://1.1.1.1/dns-query','OPEN','3zVeumT','?name=','https://dns.google/dns-query'];_0x1298=function(){return _0x1e2828;};return _0x1298();}async function resolveDoH(_0x40b582){const _0x5014e4=_0x3b36eb,_0x5e5ac0=dnsCache['get'](_0x40b582);if(_0x5e5ac0&&Date[_0x5014e4(0x9e)]()-_0x5e5ac0[_0x5014e4(0xa9)]<DNS_CACHE_TTL)return console[_0x5014e4(0xc9)](_0x5014e4(0xac)+_0x40b582+_0x5014e4(0xb7)+_0x5e5ac0['ip']),_0x5e5ac0['ip'];if(net[_0x5014e4(0xb5)](_0x40b582))return _0x40b582;console[_0x5014e4(0xc9)](_0x5014e4(0xc4)+_0x40b582+_0x5014e4(0xd9));for(const _0x1abcbc of DOH_SERVERS){try{const _0x5ed5a3=await queryDoH(_0x1abcbc,_0x40b582);if(_0x5ed5a3)return dnsCache[_0x5014e4(0xe0)](_0x40b582,{'ip':_0x5ed5a3,'timestamp':Date['now']()}),console[_0x5014e4(0xc9)](_0x5014e4(0xc2)+_0x40b582+_0x5014e4(0xb7)+_0x5ed5a3+_0x5014e4(0x95)+_0x1abcbc+')'),_0x5ed5a3;}catch(_0x5d91b0){console[_0x5014e4(0xaf)]('[DoH\x20Failed]\x20'+_0x1abcbc+':\x20'+_0x5d91b0[_0x5014e4(0xdc)]);}}console['log'](_0x5014e4(0xda)+_0x40b582);try{const _0x2773b5=await dns[_0x5014e4(0xc6)](_0x40b582);if(_0x2773b5&&_0x2773b5[_0x5014e4(0xce)]>0x0){const _0x2cf746=_0x2773b5[0x0];return dnsCache[_0x5014e4(0xe0)](_0x40b582,{'ip':_0x2cf746,'timestamp':Date['now']()}),_0x2cf746;}}catch(_0x4c3173){console[_0x5014e4(0xaf)](_0x5014e4(0x9b)+_0x40b582+':\x20'+_0x4c3173[_0x5014e4(0xdc)]);}throw new Error(_0x5014e4(0xa2)+_0x40b582);}function queryDoH(_0x1faaa6,_0x10a8a0){return new Promise((_0x4dcaab,_0x598764)=>{const _0x55ddb0=_0x18d2,_0x17ce41=_0x1faaa6+_0x55ddb0(0x8e)+_0x10a8a0+'&type=A';https[_0x55ddb0(0xbb)](_0x17ce41,{'headers':{'Accept':_0x55ddb0(0xd5)},'timeout':0x1388},_0x5945a2=>{const _0x306411=_0x55ddb0;let _0x575d14='';_0x5945a2['on'](_0x306411(0x9c),_0x2ff282=>{_0x575d14+=_0x2ff282;}),_0x5945a2['on'](_0x306411(0xa1),()=>{const _0x184026=_0x306411;try{const _0xaf551e=JSON['parse'](_0x575d14);if(_0xaf551e[_0x184026(0xbc)]&&_0xaf551e[_0x184026(0xbc)][_0x184026(0xce)]>0x0)for(const _0x258ac of _0xaf551e['Answer']){if(_0x258ac[_0x184026(0xa6)]===0x1){_0x4dcaab(_0x258ac[_0x184026(0x9c)]);return;}}_0x598764(new Error(_0x184026(0xb1)));}catch(_0x221203){_0x598764(_0x221203);}});})['on']('error',_0x598764)['on'](_0x55ddb0(0xca),()=>{_0x598764(new Error('DoH\x20query\x20timeout'));});});}const encoder=new TextEncoder(),server=http[_0x3b36eb(0x98)]((_0x414141,_0x135c4e)=>{const _0x2e0a0f=_0x3b36eb;if(_0x414141['url']==='/')_0x135c4e[_0x2e0a0f(0xa3)](0xc8,{'Content-Type':_0x2e0a0f(0xc7)}),_0x135c4e[_0x2e0a0f(0xa1)](_0x2e0a0f(0xb2));else _0x414141[_0x2e0a0f(0xc1)]===_0x2e0a0f(0xaa)?(_0x135c4e[_0x2e0a0f(0xa3)](0xc8,{'Content-Type':_0x2e0a0f(0xe1)}),_0x135c4e[_0x2e0a0f(0xa1)](JSON[_0x2e0a0f(0xde)]({'cacheSize':dnsCache['size'],'dohServers':DOH_SERVERS}))):(_0x135c4e[_0x2e0a0f(0xa3)](0x194),_0x135c4e[_0x2e0a0f(0xa1)](_0x2e0a0f(0xbd)));}),wss=new WebSocket[(_0x3b36eb(0xd3))]({'server':server,'verifyClient':_0x122fa4=>{const _0x37d5b0=_0x3b36eb,_0xe8b3a4=_0x122fa4['req'][_0x37d5b0(0xbe)]['sec-websocket-protocol'];if(TOKEN&&_0xe8b3a4!==TOKEN)return![];return!![];}});function _0x18d2(_0x3beb9e,_0x5ce96b){const _0x1298d0=_0x1298();return _0x18d2=function(_0x18d24f,_0x3c2316){_0x18d24f=_0x18d24f-0x8b;let _0x27af01=_0x1298d0[_0x18d24f];return _0x27af01;},_0x18d2(_0x3beb9e,_0x5ce96b);}wss['on'](_0x3b36eb(0xd7),(_0x156830,_0x1a8908)=>{const _0xe971a8=_0x3b36eb;TOKEN&&_0x1a8908[_0xe971a8(0xbe)]['sec-websocket-protocol']&&(_0x156830[_0xe971a8(0xba)]=TOKEN),handleSession(_0x156830)[_0xe971a8(0xb8)](()=>safeCloseWebSocket(_0x156830));});async function handleSession(_0x339be1){const _0xa71263=_0x3b36eb;let _0x3749ff=null,_0x5b64d1=![];const _0xf859f0=()=>{if(_0x5b64d1)return;_0x5b64d1=!![];if(_0x3749ff){try{_0x3749ff['destroy']();}catch{}_0x3749ff=null;}safeCloseWebSocket(_0x339be1);},_0x1c98a7=_0x3e7838=>{const _0x27fe79=_0x18d2;_0x3e7838['on']('data',_0x5bcfa7=>{const _0x268601=_0x18d2;if(!_0x5b64d1&&_0x339be1[_0x268601(0xb4)]===WebSocket[_0x268601(0x8c)])try{_0x339be1[_0x268601(0xd2)](_0x5bcfa7);}catch(_0x37ddb8){_0xf859f0();}}),_0x3e7838['on'](_0x27fe79(0xa1),()=>{const _0x2eed2c=_0x27fe79;if(!_0x5b64d1){try{_0x339be1['send'](_0x2eed2c(0xd1));}catch{}_0xf859f0();}}),_0x3e7838['on'](_0x27fe79(0xaf),()=>{_0xf859f0();});},_0x2ed7e4=_0x3af40b=>{const _0x3c8e7d=_0x18d2;if(_0x3af40b[0x0]==='['){const _0x475a3c=_0x3af40b[_0x3c8e7d(0xe3)](']');return{'host':_0x3af40b[_0x3c8e7d(0x91)](0x1,_0x475a3c),'port':parseInt(_0x3af40b['substring'](_0x475a3c+0x2),0xa)};}const _0xa08c9f=_0x3af40b[_0x3c8e7d(0xc3)](':');return{'host':_0x3af40b[_0x3c8e7d(0x91)](0x0,_0xa08c9f),'port':parseInt(_0x3af40b['substring'](_0xa08c9f+0x1),0xa)};},_0xe463be=_0x22b136=>{const _0x5f96ae=_0x18d2,_0xad54f7=_0x22b136?.[_0x5f96ae(0xdc)]?.[_0x5f96ae(0x9d)]()||'';return _0xad54f7['includes'](_0x5f96ae(0xb6))||_0xad54f7[_0x5f96ae(0xa4)](_0x5f96ae(0xa5))||_0xad54f7['includes']('econnrefused')||_0xad54f7[_0x5f96ae(0xa4)](_0x5f96ae(0xdf));},_0x41845c=async(_0x4749ad,_0x2ffabb)=>{const _0x433233=_0x18d2,{host:_0x214622,port:_0x320e13}=_0x2ed7e4(_0x4749ad),_0x24abcc=[null,...CF_FALLBACK_IPS];for(let _0x38dd67=0x0;_0x38dd67<_0x24abcc['length'];_0x38dd67++){try{const _0x1bf733=_0x24abcc[_0x38dd67]||_0x214622;let _0x4b1f56=_0x1bf733;if(!net['isIP'](_0x1bf733))try{_0x4b1f56=await resolveDoH(_0x1bf733),console['log']('[Connect]\x20'+_0x1bf733+_0x433233(0x99)+_0x4b1f56);}catch(_0x4d219d){console['error']('[DNS\x20Error]\x20Failed\x20to\x20resolve\x20'+_0x1bf733+':\x20'+_0x4d219d[_0x433233(0xdc)]);}_0x3749ff=net[_0x433233(0xd4)]({'host':_0x4b1f56,'port':_0x320e13,'timeout':0x2710}),await new Promise((_0x18ff3b,_0x1dea86)=>{const _0xb42e4d=_0x433233;_0x3749ff[_0xb42e4d(0xcb)]('connect',_0x18ff3b),_0x3749ff[_0xb42e4d(0xcb)](_0xb42e4d(0xaf),_0x1dea86);});_0x2ffabb&&_0x3749ff['write'](_0x2ffabb);_0x339be1[_0x433233(0xd2)](_0x433233(0x9f)),_0x1c98a7(_0x3749ff);return;}catch(_0xeef833){if(_0x3749ff){try{_0x3749ff[_0x433233(0x94)]();}catch{}_0x3749ff=null;}if(!_0xe463be(_0xeef833)||_0x38dd67===_0x24abcc[_0x433233(0xce)]-0x1)throw _0xeef833;}}};_0x339be1['on'](_0xa71263(0xdc),async _0x35e477=>{const _0x24aa66=_0xa71263;if(_0x5b64d1)return;try{const _0x9177b=_0x35e477[_0x24aa66(0xdb)]();if(_0x9177b['startsWith'](_0x24aa66(0xb3))){const _0xd9217=_0x9177b[_0x24aa66(0xe3)]('|',0x8);await _0x41845c(_0x9177b[_0x24aa66(0x91)](0x8,_0xd9217),_0x9177b[_0x24aa66(0x91)](_0xd9217+0x1));}else{if(_0x9177b[_0x24aa66(0xbf)](_0x24aa66(0x9a)))_0x3749ff&&!_0x3749ff[_0x24aa66(0xa0)]&&_0x3749ff[_0x24aa66(0x93)](_0x9177b[_0x24aa66(0x91)](0x5));else{if(_0x9177b===_0x24aa66(0xd1))_0xf859f0();else _0x35e477 instanceof Buffer&&_0x3749ff&&!_0x3749ff['destroyed']&&_0x3749ff[_0x24aa66(0x93)](_0x35e477);}}}catch(_0x435bb8){try{_0x339be1[_0x24aa66(0xd2)](_0x24aa66(0xc0)+_0x435bb8[_0x24aa66(0xdc)]);}catch{}_0xf859f0();}}),_0x339be1['on'](_0xa71263(0xcf),_0xf859f0),_0x339be1['on']('error',_0xf859f0);}function safeCloseWebSocket(_0x315e1b){const _0x3461f6=_0x3b36eb;try{(_0x315e1b['readyState']===WebSocket[_0x3461f6(0x8c)]||_0x315e1b['readyState']===WebSocket['CLOSING'])&&_0x315e1b['close'](0x3e8,'Server\x20closed');}catch{}}server['listen'](PORT,_0x3b36eb(0xae),()=>{const _0x401f0e=_0x3b36eb;console[_0x401f0e(0xc9)](_0x401f0e(0xcc)+PORT),console['log'](_0x401f0e(0xdd)+(TOKEN?_0x401f0e(0xad):'disabled')),console[_0x401f0e(0xc9)](_0x401f0e(0xd8)+DOH_SERVERS['join'](',\x20')),console[_0x401f0e(0xc9)](_0x401f0e(0x90)+DNS_CACHE_TTL/0x3e8+'s');});
+const CF_FALLBACK_IPS = process.env.PRIP 
+  ? process.env.PRIP.split(',') 
+  : ['ProxyIP.JP.CMLiussss.net'];
+
+// DoH 配置
+const DOH_SERVERS = [
+  'https://dns.google/dns-query',
+  'https://cloudflare-dns.com/dns-query',
+  'https://dns.alidns.com/dns-query'
+];
+
+// DNS 缓存
+const dnsCache = new Map();
+const DNS_CACHE_TTL = 300000; // 5分钟
+
+// DoH 解析函数
+async function resolveDoH(hostname) {
+  // 检查缓存
+  const cached = dnsCache.get(hostname);
+  if (cached && Date.now() - cached.timestamp < DNS_CACHE_TTL) {
+    console.log(`[DoH Cache Hit] ${hostname} -> ${cached.ip}`);
+    return cached.ip;
+  }
+
+  // 如果是 IP 地址，直接返回
+  if (net.isIP(hostname)) {
+    return hostname;
+  }
+
+  console.log(`[DoH Query] Resolving ${hostname}...`);
+
+  // 尝试多个 DoH 服务器
+  for (const dohServer of DOH_SERVERS) {
+    try {
+      const ip = await queryDoH(dohServer, hostname);
+      if (ip) {
+        // 缓存结果
+        dnsCache.set(hostname, { ip, timestamp: Date.now() });
+        console.log(`[DoH Success] ${hostname} -> ${ip} (via ${dohServer})`);
+        return ip;
+      }
+    } catch (err) {
+      console.error(`[DoH Failed] ${dohServer}: ${err.message}`);
+    }
+  }
+
+  // 如果所有 DoH 都失败，回退到系统 DNS
+  console.log(`[DoH Fallback] Using system DNS for ${hostname}`);
+  try {
+    const addresses = await dns.resolve4(hostname);
+    if (addresses && addresses.length > 0) {
+      const ip = addresses[0];
+      dnsCache.set(hostname, { ip, timestamp: Date.now() });
+      return ip;
+    }
+  } catch (err) {
+    console.error(`[System DNS Failed] ${hostname}: ${err.message}`);
+  }
+
+  throw new Error(`Failed to resolve ${hostname}`);
+}
+
+// 查询 DoH 服务器
+function queryDoH(dohServer, hostname) {
+  return new Promise((resolve, reject) => {
+    const url = `${dohServer}?name=${hostname}&type=A`;
+    
+    https.get(url, {
+      headers: {
+        'Accept': 'application/dns-json'
+      },
+      timeout: 5000
+    }, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          
+          // 查找 A 记录
+          if (json.Answer && json.Answer.length > 0) {
+            for (const answer of json.Answer) {
+              if (answer.type === 1) { // A 记录
+                resolve(answer.data);
+                return;
+              }
+            }
+          }
+          
+          reject(new Error('No A record found'));
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }).on('error', reject).on('timeout', () => {
+      reject(new Error('DoH query timeout'));
+    });
+  });
+}
+
+const encoder = new TextEncoder();
+
+// 创建 HTTP 服务器
+const server = http.createServer((req, res) => {
+  if (req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Hello-world');
+  } else if (req.url === '/stats') {
+    // DNS 缓存统计
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      cacheSize: dnsCache.size,
+      dohServers: DOH_SERVERS
+    }));
+  } else {
+    res.writeHead(404);
+    res.end('Not Found');
+  }
+});
+
+// 创建 WebSocket 服务器
+const wss = new WebSocket.Server({ 
+  server,
+  verifyClient: (info) => {
+    // 验证 token
+    const protocol = info.req.headers['sec-websocket-protocol'];
+    if (TOKEN && protocol !== TOKEN) {
+      return false;
+    }
+    return true;
+  }
+});
+
+wss.on('connection', (ws, req) => {
+  // 如果有 token,设置协议
+  if (TOKEN && req.headers['sec-websocket-protocol']) {
+    ws.protocol = TOKEN;
+  }
+
+  handleSession(ws).catch(() => safeCloseWebSocket(ws));
+});
+
+async function handleSession(webSocket) {
+  let remoteSocket = null;
+  let isClosed = false;
+
+  const cleanup = () => {
+    if (isClosed) return;
+    isClosed = true;
+    
+    if (remoteSocket) {
+      try { remoteSocket.destroy(); } catch {}
+      remoteSocket = null;
+    }
+    
+    safeCloseWebSocket(webSocket);
+  };
+
+  const pumpRemoteToWebSocket = (socket) => {
+    socket.on('data', (data) => {
+      if (!isClosed && webSocket.readyState === WebSocket.OPEN) {
+        try {
+          webSocket.send(data);
+        } catch (err) {
+          cleanup();
+        }
+      }
+    });
+
+    socket.on('end', () => {
+      if (!isClosed) {
+        try { webSocket.send('CLOSE'); } catch {}
+        cleanup();
+      }
+    });
+
+    socket.on('error', () => {
+      cleanup();
+    });
+  };
+
+  const parseAddress = (addr) => {
+    if (addr[0] === '[') {
+      const end = addr.indexOf(']');
+      return {
+        host: addr.substring(1, end),
+        port: parseInt(addr.substring(end + 2), 10)
+      };
+    }
+    const sep = addr.lastIndexOf(':');
+    return {
+      host: addr.substring(0, sep),
+      port: parseInt(addr.substring(sep + 1), 10)
+    };
+  };
+
+  const isCFError = (err) => {
+    const msg = err?.message?.toLowerCase() || '';
+    return msg.includes('proxy request') || 
+           msg.includes('cannot connect') || 
+           msg.includes('econnrefused') ||
+           msg.includes('etimedout');
+  };
+
+  const connectToRemote = async (targetAddr, firstFrameData) => {
+    const { host, port } = parseAddress(targetAddr);
+    const attempts = [null, ...CF_FALLBACK_IPS];
+
+    for (let i = 0; i < attempts.length; i++) {
+      try {
+        const targetHost = attempts[i] || host;
+        
+        // 使用 DoH 解析域名
+        let resolvedHost = targetHost;
+        if (!net.isIP(targetHost)) {
+          try {
+            resolvedHost = await resolveDoH(targetHost);
+            console.log(`[Connect] ${targetHost} resolved to ${resolvedHost}`);
+          } catch (err) {
+            console.error(`[DNS Error] Failed to resolve ${targetHost}: ${err.message}`);
+            // 如果解析失败，仍尝试直接连接（系统 DNS 可能会处理）
+          }
+        }
+        
+        remoteSocket = net.connect({
+          host: resolvedHost,
+          port: port,
+          timeout: 10000
+        });
+
+        await new Promise((resolve, reject) => {
+          remoteSocket.once('connect', resolve);
+          remoteSocket.once('error', reject);
+        });
+
+        // 发送首帧数据
+        if (firstFrameData) {
+          remoteSocket.write(firstFrameData);
+        }
+
+        webSocket.send('CONNECTED');
+        pumpRemoteToWebSocket(remoteSocket);
+        return;
+
+      } catch (err) {
+        // 清理失败的连接
+        if (remoteSocket) {
+          try { remoteSocket.destroy(); } catch {}
+          remoteSocket = null;
+        }
+
+        // 如果不是连接错误或已是最后尝试,抛出错误
+        if (!isCFError(err) || i === attempts.length - 1) {
+          throw err;
+        }
+      }
+    }
+  };
+
+  webSocket.on('message', async (data) => {
+    if (isClosed) return;
+
+    try {
+      // WebSocket 的 data 可能是 Buffer 或 String
+      const message = data.toString();
+
+      if (message.startsWith('CONNECT:')) {
+        const sep = message.indexOf('|', 8);
+        await connectToRemote(
+          message.substring(8, sep),
+          message.substring(sep + 1)
+        );
+      }
+      else if (message.startsWith('DATA:')) {
+        if (remoteSocket && !remoteSocket.destroyed) {
+          remoteSocket.write(message.substring(5));
+        }
+      }
+      else if (message === 'CLOSE') {
+        cleanup();
+      }
+      else if (data instanceof Buffer && remoteSocket && !remoteSocket.destroyed) {
+        remoteSocket.write(data);
+      }
+    } catch (err) {
+      try { webSocket.send('ERROR:' + err.message); } catch {}
+      cleanup();
+    }
+  });
+
+  webSocket.on('close', cleanup);
+  webSocket.on('error', cleanup);
+}
+
+function safeCloseWebSocket(ws) {
+  try {
+    if (ws.readyState === WebSocket.OPEN || 
+        ws.readyState === WebSocket.CLOSING) {
+      ws.close(1000, 'Server closed');
+    }
+  } catch {}
+}
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Web listening on port ${PORT}`);
+  console.log(`Token authentication: ${TOKEN ? 'enabled' : 'disabled'}`);
+  console.log(`DoH Servers: ${DOH_SERVERS.join(', ')}`);
+  console.log(`DNS Cache TTL: ${DNS_CACHE_TTL / 1000}s`);
+});
