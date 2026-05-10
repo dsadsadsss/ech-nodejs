@@ -285,7 +285,7 @@ async def handle_root(request: web.Request) -> web.StreamResponse:
         return ws
 
     # 普通 HTTP GET → Hello-world
-    return web.Response(text='Hello-world')
+    return web.Response(text='Hello-world 123')
 
 
 # ── 入口 ──────────────────────────────────────────────────────────────────────
