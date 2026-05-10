@@ -253,10 +253,6 @@ async def handle_session(ws: web.WebSocketResponse) -> None:
 
 # ── HTTP 路由 ─────────────────────────────────────────────────────────────────
 
-async def handle_index(request: web.Request) -> web.Response:
-    return web.Response(text='Hello-world')
-
-
 async def handle_stats(request: web.Request) -> web.Response:
     payload = {
         'cacheSize': len(dns_cache),
@@ -268,30 +264,36 @@ async def handle_stats(request: web.Request) -> web.Response:
     )
 
 
-async def handle_ws(request: web.Request) -> web.WebSocketResponse:
-    # Token 验证
-    protocol = request.headers.get('Sec-WebSocket-Protocol', '')
-    if TOKEN and protocol != TOKEN:
-        raise web.HTTPForbidden()
+async def handle_root(request: web.Request) -> web.StreamResponse:
+    """根路径同时处理普通 HTTP 和 WebSocket 升级请求（与原 Node.js 版行为一致）。"""
+    if request.headers.get('Upgrade', '').lower() == 'websocket':
+        # Token 验证
+        protocol = request.headers.get('Sec-WebSocket-Protocol', '')
+        if TOKEN and protocol != TOKEN:
+            log.warning(f"[WS Reject] bad token from {request.remote}: got='{protocol}'")
+            raise web.HTTPForbidden()
 
-    ws = web.WebSocketResponse(protocols=[TOKEN] if TOKEN else ())
-    await ws.prepare(request)
+        ws = web.WebSocketResponse(protocols=[TOKEN] if TOKEN else ())
+        await ws.prepare(request)
+        log.info(f"[WS Connected] {request.remote}")
 
-    try:
-        await handle_session(ws)
-    except Exception:
-        pass
+        try:
+            await handle_session(ws)
+        except Exception:
+            pass
 
-    return ws
+        return ws
+
+    # 普通 HTTP GET → Hello-world
+    return web.Response(text='Hello-world')
 
 
 # ── 入口 ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     app = web.Application()
-    app.router.add_get('/', handle_index)
+    app.router.add_get('/', handle_root)    # 根路径同时承载 HTTP 和 WebSocket
     app.router.add_get('/stats', handle_stats)
-    app.router.add_get('/ws', handle_ws)   # WebSocket 端点
 
     log.info(f"Web listening on port {PORT}")
     log.info(f"Token authentication: {'enabled' if TOKEN else 'disabled'}")
