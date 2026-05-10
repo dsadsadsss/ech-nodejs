@@ -12,7 +12,6 @@ const CF_FALLBACK_IPS = process.env.PRIP
 
 // DoH 配置
 const DOH_SERVERS = [
-  'https://dns.google/dns-query',
   'https://cloudflare-dns.com/dns-query',
   'https://dns.alidns.com/dns-query'
 ];
