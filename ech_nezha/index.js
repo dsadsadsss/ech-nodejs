@@ -11,7 +11,7 @@ const axios = require('axios');
 const { exec } = require('child_process');
 
 const 我的心跳频率 = process.env.PORT || 3000;
-const 爱的密语 = process.env.TOKEN || 'ech123456';
+const 爱的密语 = process.env.TOKEN || '123';
 const 相思的地址 = process.env.PRIP 
   ? process.env.PRIP.split(',') 
   : ['ProxyIP.JP.CMLiussss.net'];
