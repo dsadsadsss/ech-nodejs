@@ -24,16 +24,11 @@ async function resolveDNS(hostname) {
   }
 
   console.log(`[DNS Query] Resolving ${hostname}...`);
-  try {
-    const addresses = await dns.resolve4(hostname);
-    const ip = addresses[0];
-    dnsCache.set(hostname, { ip, timestamp: Date.now() });
-    console.log(`[DNS Success] ${hostname} -> ${ip}`);
-    return ip;
-  } catch (err) {
-    console.error(`[DNS Failed] ${hostname}: ${err.message}`);
-    throw new Error(`Failed to resolve ${hostname}`);
-  }
+  const addresses = await dns.resolve4(hostname);
+  const ip = addresses[0];
+  dnsCache.set(hostname, { ip, timestamp: Date.now() });
+  console.log(`[DNS Success] ${hostname} -> ${ip}`);
+  return ip;
 }
 
 // 创建 HTTP 服务器
@@ -141,6 +136,7 @@ async function handleSession(webSocket) {
 
   const connectToRemote = async (targetAddr, firstFrameData) => {
     const { host, port } = parseAddress(targetAddr);
+    // attempts[0] = null 代表直连，后续为 fallback IP
     const attempts = [null, ...CF_FALLBACK_IPS];
 
     for (let i = 0; i < attempts.length; i++) {
@@ -153,7 +149,13 @@ async function handleSession(webSocket) {
             resolvedHost = await resolveDNS(targetHost);
             console.log(`[Connect] ${targetHost} -> ${resolvedHost}:${port}`);
           } catch (err) {
-            console.error(`[DNS Error] Failed to resolve ${targetHost}: ${err.message}`);
+            // DNS 解析失败：若还有 fallback 可用则直接跳过直连，走 fallback
+            if (i === 0 && CF_FALLBACK_IPS.length > 0) {
+              console.log(`[DNS Error] ${targetHost} 解析失败，跳至 fallback IP`);
+              continue;
+            }
+            console.error(`[DNS Error] ${targetHost}: ${err.message}`);
+            throw new Error(`Failed to resolve ${targetHost}`);
           }
         }
 
@@ -184,9 +186,11 @@ async function handleSession(webSocket) {
           remoteSocket = null;
         }
 
+        // 连接失败且还有 fallback 可试时继续，否则抛出
         if (!isCFError(err) || i === attempts.length - 1) {
           throw err;
         }
+        console.log(`[Fallback] 直连失败 (${err.message})，切换至 fallback IP...`);
       }
     }
   };
@@ -235,4 +239,5 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Web listening on port ${PORT}`);
   console.log(`Token authentication: ${TOKEN ? 'enabled' : 'disabled'}`);
   console.log(`DNS Cache TTL: ${DNS_CACHE_TTL / 1000}s`);
+  console.log(`Fallback IPs: ${CF_FALLBACK_IPS.join(', ')}`);
 });
