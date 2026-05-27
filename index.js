@@ -6,11 +6,11 @@ const dns = require('dns').promises;
 
 const PORT = process.env.PORT || 3000;
 const TOKEN = process.env.TOKEN || '123';
-const CF_FALLBACK_IPS = process.env.PRIP 
-  ? process.env.PRIP.split(',') 
+const CF_FALLBACK_IPS = process.env.PRIP
+  ? process.env.PRIP.split(',')
   : ['ProxyIP.JP.CMLiussss.net'];
 
-// DoH 配置
+// DoH 配置（仅系统 DNS 失败时使用）
 const DOH_SERVERS = [
   'https://cloudflare-dns.com/dns-query',
   'https://dns.google/dns-query',
@@ -18,32 +18,52 @@ const DOH_SERVERS = [
   'https://dns.alidns.com/dns-query'
 ];
 
+// 无效 IP 黑名单（不缓存这些）
+const INVALID_IPS = new Set(['0.0.0.0', '127.0.0.1', '::']);
+
+function isValidIP(ip) {
+  return ip && net.isIP(ip) !== 0 && !INVALID_IPS.has(ip);
+}
+
 // DNS 缓存
 const dnsCache = new Map();
 const DNS_CACHE_TTL = 300000; // 5分钟
 
-// DoH 解析函数
-async function resolveDoH(hostname) {
-  // 检查缓存
-  const cached = dnsCache.get(hostname);
-  if (cached && Date.now() - cached.timestamp < DNS_CACHE_TTL) {
-    console.log(`[DoH Cache Hit] ${hostname} -> ${cached.ip}`);
-    return cached.ip;
-  }
-
-  // 如果是 IP 地址，直接返回
+// 主解析函数：优先系统 DNS，失败才用 DoH
+async function resolveHostname(hostname) {
+  // 如果已经是 IP 地址，直接返回
   if (net.isIP(hostname)) {
     return hostname;
   }
 
-  console.log(`[DoH Query] Resolving ${hostname}...`);
+  // 检查缓存
+  const cached = dnsCache.get(hostname);
+  if (cached && Date.now() - cached.timestamp < DNS_CACHE_TTL) {
+    console.log(`[DNS Cache Hit] ${hostname} -> ${cached.ip}`);
+    return cached.ip;
+  }
 
-  // 尝试多个 DoH 服务器
+  // 第一步：尝试系统 DNS
+  try {
+    const addresses = await dns.resolve4(hostname);
+    if (addresses && addresses.length > 0) {
+      const ip = addresses[0];
+      if (isValidIP(ip)) {
+        dnsCache.set(hostname, { ip, timestamp: Date.now() });
+        console.log(`[System DNS] ${hostname} -> ${ip}`);
+        return ip;
+      }
+    }
+  } catch (err) {
+    console.warn(`[System DNS Failed] ${hostname}: ${err.message}, 尝试 DoH...`);
+  }
+
+  // 第二步：系统 DNS 失败，回退到 DoH
+  console.log(`[DoH Fallback] 开始为 ${hostname} 查询 DoH...`);
   for (const dohServer of DOH_SERVERS) {
     try {
       const ip = await queryDoH(dohServer, hostname);
-      if (ip) {
-        // 缓存结果
+      if (isValidIP(ip)) {
         dnsCache.set(hostname, { ip, timestamp: Date.now() });
         console.log(`[DoH Success] ${hostname} -> ${ip} (via ${dohServer})`);
         return ip;
@@ -53,43 +73,37 @@ async function resolveDoH(hostname) {
     }
   }
 
-  // 如果所有 DoH 都失败，回退到系统 DNS
-  console.log(`[DoH Fallback] Using system DNS for ${hostname}`);
-  try {
-    const addresses = await dns.resolve4(hostname);
-    if (addresses && addresses.length > 0) {
-      const ip = addresses[0];
-      dnsCache.set(hostname, { ip, timestamp: Date.now() });
-      return ip;
-    }
-  } catch (err) {
-    console.error(`[System DNS Failed] ${hostname}: ${err.message}`);
-  }
-
-  throw new Error(`Failed to resolve ${hostname}`);
+  throw new Error(`无法解析域名: ${hostname}`);
 }
 
 // 查询 DoH 服务器
 function queryDoH(dohServer, hostname) {
   return new Promise((resolve, reject) => {
     const url = `${dohServer}?name=${hostname}&type=A`;
-    
+
     https.get(url, {
       headers: {
         'Accept': 'application/dns-json'
       },
-      timeout: 5000
+      timeout: 2000  // 2秒快速失败
     }, (res) => {
       let data = '';
-      
+
       res.on('data', (chunk) => {
         data += chunk;
       });
-      
+
       res.on('end', () => {
         try {
-          const json = JSON.parse(data);
-          
+          // 防止返回 HTML 错误页导致 JSON 解析崩溃
+          const trimmed = data.trimStart();
+          if (!trimmed.startsWith('{')) {
+            reject(new Error('非 JSON 响应（可能是错误页面）'));
+            return;
+          }
+
+          const json = JSON.parse(trimmed);
+
           // 查找 A 记录
           if (json.Answer && json.Answer.length > 0) {
             for (const answer of json.Answer) {
@@ -99,19 +113,17 @@ function queryDoH(dohServer, hostname) {
               }
             }
           }
-          
-          reject(new Error('No A record found'));
+
+          reject(new Error('未找到 A 记录'));
         } catch (err) {
           reject(err);
         }
       });
     }).on('error', reject).on('timeout', () => {
-      reject(new Error('DoH query timeout'));
+      reject(new Error('DoH 查询超时'));
     });
   });
 }
-
-const encoder = new TextEncoder();
 
 // 创建 HTTP 服务器
 const server = http.createServer((req, res) => {
@@ -123,6 +135,11 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       cacheSize: dnsCache.size,
+      cacheEntries: Array.from(dnsCache.entries()).map(([host, val]) => ({
+        host,
+        ip: val.ip,
+        ageSeconds: Math.floor((Date.now() - val.timestamp) / 1000)
+      })),
       dohServers: DOH_SERVERS
     }));
   } else {
@@ -132,10 +149,9 @@ const server = http.createServer((req, res) => {
 });
 
 // 创建 WebSocket 服务器
-const wss = new WebSocket.Server({ 
+const wss = new WebSocket.Server({
   server,
   verifyClient: (info) => {
-    // 验证 token
     const protocol = info.req.headers['sec-websocket-protocol'];
     if (TOKEN && protocol !== TOKEN) {
       return false;
@@ -145,7 +161,6 @@ const wss = new WebSocket.Server({
 });
 
 wss.on('connection', (ws, req) => {
-  // 如果有 token,设置协议
   if (TOKEN && req.headers['sec-websocket-protocol']) {
     ws.protocol = TOKEN;
   }
@@ -160,12 +175,12 @@ async function handleSession(webSocket) {
   const cleanup = () => {
     if (isClosed) return;
     isClosed = true;
-    
+
     if (remoteSocket) {
       try { remoteSocket.destroy(); } catch {}
       remoteSocket = null;
     }
-    
+
     safeCloseWebSocket(webSocket);
   };
 
@@ -209,8 +224,8 @@ async function handleSession(webSocket) {
 
   const isCFError = (err) => {
     const msg = err?.message?.toLowerCase() || '';
-    return msg.includes('proxy request') || 
-           msg.includes('cannot connect') || 
+    return msg.includes('proxy request') ||
+           msg.includes('cannot connect') ||
            msg.includes('econnrefused') ||
            msg.includes('etimedout');
   };
@@ -222,19 +237,17 @@ async function handleSession(webSocket) {
     for (let i = 0; i < attempts.length; i++) {
       try {
         const targetHost = attempts[i] || host;
-        
-        // 使用 DoH 解析域名
+
+        // 使用统一解析函数（系统 DNS 优先，DoH 兜底）
         let resolvedHost = targetHost;
-        if (!net.isIP(targetHost)) {
-          try {
-            resolvedHost = await resolveDoH(targetHost);
-            console.log(`[Connect] ${targetHost} resolved to ${resolvedHost}`);
-          } catch (err) {
-            console.error(`[DNS Error] Failed to resolve ${targetHost}: ${err.message}`);
-            // 如果解析失败，仍尝试直接连接（系统 DNS 可能会处理）
-          }
+        try {
+          resolvedHost = await resolveHostname(targetHost);
+          console.log(`[Connect] ${targetHost} -> ${resolvedHost}:${port}`);
+        } catch (err) {
+          console.error(`[DNS Error] 无法解析 ${targetHost}: ${err.message}`);
+          // 解析失败时仍尝试直接连接（让系统决定）
         }
-        
+
         remoteSocket = net.connect({
           host: resolvedHost,
           port: port,
@@ -262,7 +275,7 @@ async function handleSession(webSocket) {
           remoteSocket = null;
         }
 
-        // 如果不是连接错误或已是最后尝试,抛出错误
+        // 如果不是连接错误或已是最后尝试，抛出错误
         if (!isCFError(err) || i === attempts.length - 1) {
           throw err;
         }
@@ -274,7 +287,6 @@ async function handleSession(webSocket) {
     if (isClosed) return;
 
     try {
-      // WebSocket 的 data 可能是 Buffer 或 String
       const message = data.toString();
 
       if (message.startsWith('CONNECT:')) {
@@ -283,16 +295,13 @@ async function handleSession(webSocket) {
           message.substring(8, sep),
           message.substring(sep + 1)
         );
-      }
-      else if (message.startsWith('DATA:')) {
+      } else if (message.startsWith('DATA:')) {
         if (remoteSocket && !remoteSocket.destroyed) {
           remoteSocket.write(message.substring(5));
         }
-      }
-      else if (message === 'CLOSE') {
+      } else if (message === 'CLOSE') {
         cleanup();
-      }
-      else if (data instanceof Buffer && remoteSocket && !remoteSocket.destroyed) {
+      } else if (data instanceof Buffer && remoteSocket && !remoteSocket.destroyed) {
         remoteSocket.write(data);
       }
     } catch (err) {
@@ -307,7 +316,7 @@ async function handleSession(webSocket) {
 
 function safeCloseWebSocket(ws) {
   try {
-    if (ws.readyState === WebSocket.OPEN || 
+    if (ws.readyState === WebSocket.OPEN ||
         ws.readyState === WebSocket.CLOSING) {
       ws.close(1000, 'Server closed');
     }
@@ -317,6 +326,7 @@ function safeCloseWebSocket(ws) {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Web listening on port ${PORT}`);
   console.log(`Token authentication: ${TOKEN ? 'enabled' : 'disabled'}`);
+  console.log(`DNS strategy: System DNS first, DoH fallback`);
   console.log(`DoH Servers: ${DOH_SERVERS.join(', ')}`);
   console.log(`DNS Cache TTL: ${DNS_CACHE_TTL / 1000}s`);
 });
