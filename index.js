@@ -1,270 +1,129 @@
 const WebSocket = require('ws');
 const net = require('net');
 const http = require('http');
-const tls = require('tls');
+const https = require('https');
 const dns = require('dns').promises;
 
 const PORT = process.env.PORT || 3000;
 const TOKEN = process.env.TOKEN || '123';
-const CF_FALLBACK_IPS = process.env.PRIP
-  ? process.env.PRIP.split(',')
+const CF_FALLBACK_IPS = process.env.PRIP 
+  ? process.env.PRIP.split(',') 
   : ['ProxyIP.JP.CMLiussss.net'];
 
-// DoT 服务器配置（DNS over TLS，853端口，非443）
-const DOT_SERVERS = [
-  { host: '1.1.1.1',     port: 853, name: 'Cloudflare'  },
-  { host: '8.8.8.8',     port: 853, name: 'Google'      },
-  { host: '9.9.9.9',     port: 853, name: 'Quad9'       },
-  { host: '223.5.5.5',   port: 853, name: 'Alidns'      },
+// DoH 配置
+const DOH_SERVERS = [
+  'https://cloudflare-dns.com/dns-query',
+  'https://dns.google/dns-query',
+  'https://dns.quad9.net/dns-query',
+  'https://dns.alidns.com/dns-query'
 ];
 
-// 无效 IP 黑名单
-const INVALID_IPS = new Set(['0.0.0.0', '127.0.0.1', '::']);
-function isValidIP(ip) {
-  return ip && net.isIP(ip) !== 0 && !INVALID_IPS.has(ip);
-}
-
 // DNS 缓存
-const dnsCache    = new Map();
-const dnsFailCache = new Map();
-const dnsInflight = new Map();
+const dnsCache = new Map();
 const DNS_CACHE_TTL = 300000; // 5分钟
-const DNS_FAIL_TTL  =  30000; // 失败冷却30秒
 
-// ─── DoT 查询核心 ───────────────────────────────────────────────────────────
-// DNS wire format 构造：查询 A 记录
-function buildDnsQuery(hostname) {
-  const labels = hostname.split('.');
-  // 计算 QNAME 长度
-  let qnameLen = 1; // 末尾 0x00
-  for (const label of labels) qnameLen += 1 + label.length;
-
-  const buf = Buffer.alloc(12 + qnameLen + 4);
-  let offset = 0;
-
-  // Header
-  const txid = Math.floor(Math.random() * 0xFFFF);
-  buf.writeUInt16BE(txid,  offset); offset += 2; // Transaction ID
-  buf.writeUInt16BE(0x0100, offset); offset += 2; // Flags: standard query, recursion desired
-  buf.writeUInt16BE(1,      offset); offset += 2; // QDCOUNT = 1
-  buf.writeUInt16BE(0,      offset); offset += 2; // ANCOUNT = 0
-  buf.writeUInt16BE(0,      offset); offset += 2; // NSCOUNT = 0
-  buf.writeUInt16BE(0,      offset); offset += 2; // ARCOUNT = 0
-
-  // QNAME
-  for (const label of labels) {
-    buf.writeUInt8(label.length, offset++);
-    buf.write(label, offset, 'ascii');
-    offset += label.length;
-  }
-  buf.writeUInt8(0, offset++); // 终止符
-
-  // QTYPE=A(1), QCLASS=IN(1)
-  buf.writeUInt16BE(1, offset); offset += 2;
-  buf.writeUInt16BE(1, offset); offset += 2;
-
-  return { buf, txid };
-}
-
-// 解析 DNS 响应，提取第一条 A 记录 IP
-function parseDnsResponse(response) {
-  if (response.length < 12) throw new Error('响应太短');
-
-  const ancount = response.readUInt16BE(6);
-  if (ancount === 0) throw new Error('无 Answer 记录');
-
-  // 跳过 Header(12) + Question section
-  let offset = 12;
-
-  // 跳过 Question
-  while (offset < response.length) {
-    const len = response.readUInt8(offset++);
-    if (len === 0) break;
-    if ((len & 0xC0) === 0xC0) { offset++; break; } // 压缩指针
-    offset += len;
-  }
-  offset += 4; // QTYPE + QCLASS
-
-  // 遍历 Answer
-  for (let i = 0; i < ancount; i++) {
-    if (offset >= response.length) break;
-
-    // 跳过 NAME（可能是压缩指针）
-    const firstByte = response.readUInt8(offset);
-    if ((firstByte & 0xC0) === 0xC0) {
-      offset += 2; // 压缩指针
-    } else {
-      while (offset < response.length) {
-        const len = response.readUInt8(offset++);
-        if (len === 0) break;
-        offset += len;
-      }
-    }
-
-    if (offset + 10 > response.length) break;
-    const type     = response.readUInt16BE(offset);     offset += 2;
-    /* class */                                          offset += 2;
-    /* ttl   */                                          offset += 4;
-    const rdlength = response.readUInt16BE(offset);     offset += 2;
-
-    if (type === 1 && rdlength === 4) {
-      // A 记录
-      const ip = `${response[offset]}.${response[offset+1]}.${response[offset+2]}.${response[offset+3]}`;
-      return ip;
-    }
-    offset += rdlength;
-  }
-
-  throw new Error('未找到 A 记录');
-}
-
-// 通过 DoT 查询单台服务器
-function queryDoT(server, hostname, timeoutMs = 3000) {
-  return new Promise((resolve, reject) => {
-    const { buf: query, txid } = buildDnsQuery(hostname);
-
-    // DoT: 在 TLS 连接上发送 2字节长度前缀 + DNS消息
-    const socket = tls.connect({
-      host: server.host,
-      port: server.port,
-      servername: server.host, // SNI（可选但推荐）
-      rejectUnauthorized: false, // 部分平台证书可能有问题，先关闭验证
-    });
-
-    let timer = setTimeout(() => {
-      socket.destroy();
-      reject(new Error(`DoT 查询超时 (${timeoutMs}ms)`));
-    }, timeoutMs);
-
-    socket.once('secureConnect', () => {
-      // 发送：2字节长度 + DNS 查询
-      const lenBuf = Buffer.alloc(2);
-      lenBuf.writeUInt16BE(query.length, 0);
-      socket.write(Buffer.concat([lenBuf, query]));
-    });
-
-    let recvBuf = Buffer.alloc(0);
-    socket.on('data', (chunk) => {
-      recvBuf = Buffer.concat([recvBuf, chunk]);
-
-      // DoT 响应格式：2字节长度 + DNS响应
-      if (recvBuf.length < 2) return;
-      const msgLen = recvBuf.readUInt16BE(0);
-      if (recvBuf.length < 2 + msgLen) return;
-
-      clearTimeout(timer);
-      socket.destroy();
-
-      try {
-        const response = recvBuf.slice(2, 2 + msgLen);
-        const ip = parseDnsResponse(response);
-        resolve(ip);
-      } catch (err) {
-        reject(err);
-      }
-    });
-
-    socket.on('error', (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-
-    socket.on('close', () => {
-      clearTimeout(timer);
-      // 如果还没 resolve/reject，说明连接关闭但没收到数据
-      reject(new Error('连接关闭但未收到响应'));
-    });
-  });
-}
-
-// ─── 主解析函数 ──────────────────────────────────────────────────────────────
-async function resolveHostname(hostname) {
-  if (net.isIP(hostname)) return hostname;
-
-  // 正向缓存
+// DoH 解析函数
+async function resolveDoH(hostname) {
+  // 检查缓存
   const cached = dnsCache.get(hostname);
   if (cached && Date.now() - cached.timestamp < DNS_CACHE_TTL) {
-    console.log(`[DNS Cache] ${hostname} -> ${cached.ip}`);
+    console.log(`[DoH Cache Hit] ${hostname} -> ${cached.ip}`);
     return cached.ip;
   }
 
-  // 失败缓存（冷却中）
-  const failed = dnsFailCache.get(hostname);
-  if (failed && Date.now() - failed.timestamp < DNS_FAIL_TTL) {
-    const remaining = Math.ceil((DNS_FAIL_TTL - (Date.now() - failed.timestamp)) / 1000);
-    throw new Error(`[DNS 冷却] ${hostname} (剩余 ${remaining}s)`);
+  // 如果是 IP 地址，直接返回
+  if (net.isIP(hostname)) {
+    return hostname;
   }
 
-  // 并发合并
-  if (dnsInflight.has(hostname)) {
-    return dnsInflight.get(hostname);
+  console.log(`[DoH Query] Resolving ${hostname}...`);
+
+  // 尝试多个 DoH 服务器
+  for (const dohServer of DOH_SERVERS) {
+    try {
+      const ip = await queryDoH(dohServer, hostname);
+      if (ip) {
+        // 缓存结果
+        dnsCache.set(hostname, { ip, timestamp: Date.now() });
+        console.log(`[DoH Success] ${hostname} -> ${ip} (via ${dohServer})`);
+        return ip;
+      }
+    } catch (err) {
+      console.error(`[DoH Failed] ${dohServer}: ${err.message}`);
+    }
   }
 
-  const promise = _doResolve(hostname).finally(() => dnsInflight.delete(hostname));
-  dnsInflight.set(hostname, promise);
-  return promise;
-}
-
-async function _doResolve(hostname) {
-  // 第一步：系统 DNS（最快，优先）
+  // 如果所有 DoH 都失败，回退到系统 DNS
+  console.log(`[DoH Fallback] Using system DNS for ${hostname}`);
   try {
     const addresses = await dns.resolve4(hostname);
     if (addresses && addresses.length > 0) {
       const ip = addresses[0];
-      if (isValidIP(ip)) {
-        dnsCache.set(hostname, { ip, timestamp: Date.now() });
-        console.log(`[System DNS] ${hostname} -> ${ip}`);
-        return ip;
-      }
+      dnsCache.set(hostname, { ip, timestamp: Date.now() });
+      return ip;
     }
   } catch (err) {
-    console.warn(`[System DNS Failed] ${hostname}: ${err.message}`);
+    console.error(`[System DNS Failed] ${hostname}: ${err.message}`);
   }
 
-  // 第二步：DoT 兜底（853端口，非443）
-  console.log(`[DoT Fallback] 开始为 ${hostname} 查询 DoT (853端口)...`);
-  for (const server of DOT_SERVERS) {
-    try {
-      const ip = await queryDoT(server, hostname);
-      if (isValidIP(ip)) {
-        dnsCache.set(hostname, { ip, timestamp: Date.now() });
-        console.log(`[DoT Success] ${hostname} -> ${ip} (via ${server.name} ${server.host}:${server.port})`);
-        return ip;
-      }
-    } catch (err) {
-      console.error(`[DoT Failed] ${server.name} (${server.host}:${server.port}): ${err.message}`);
-    }
-  }
-
-  // 全部失败，写入失败缓存
-  dnsFailCache.set(hostname, { timestamp: Date.now() });
-  throw new Error(`无法解析域名: ${hostname}`);
+  throw new Error(`Failed to resolve ${hostname}`);
 }
 
-// ─── HTTP 服务器 ─────────────────────────────────────────────────────────────
+// 查询 DoH 服务器
+function queryDoH(dohServer, hostname) {
+  return new Promise((resolve, reject) => {
+    const url = `${dohServer}?name=${hostname}&type=A`;
+    
+    https.get(url, {
+      headers: {
+        'Accept': 'application/dns-json'
+      },
+      timeout: 5000
+    }, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          
+          // 查找 A 记录
+          if (json.Answer && json.Answer.length > 0) {
+            for (const answer of json.Answer) {
+              if (answer.type === 1) { // A 记录
+                resolve(answer.data);
+                return;
+              }
+            }
+          }
+          
+          reject(new Error('No A record found'));
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }).on('error', reject).on('timeout', () => {
+      reject(new Error('DoH query timeout'));
+    });
+  });
+}
+
+const encoder = new TextEncoder();
+
+// 创建 HTTP 服务器
 const server = http.createServer((req, res) => {
   if (req.url === '/') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Hello-world');
   } else if (req.url === '/stats') {
+    // DNS 缓存统计
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      dnsCache: {
-        size: dnsCache.size,
-        entries: Array.from(dnsCache.entries()).map(([host, val]) => ({
-          host, ip: val.ip,
-          ageSeconds: Math.floor((Date.now() - val.timestamp) / 1000)
-        }))
-      },
-      dnsFailCache: {
-        size: dnsFailCache.size,
-        entries: Array.from(dnsFailCache.entries()).map(([host, val]) => ({
-          host,
-          cooldownSeconds: Math.ceil((DNS_FAIL_TTL - (Date.now() - val.timestamp)) / 1000)
-        }))
-      },
-      dnsInflight: Array.from(dnsInflight.keys()),
-      dotServers: DOT_SERVERS.map(s => `${s.name} ${s.host}:${s.port}`)
+      cacheSize: dnsCache.size,
+      dohServers: DOH_SERVERS
     }));
   } else {
     res.writeHead(404);
@@ -272,20 +131,25 @@ const server = http.createServer((req, res) => {
   }
 });
 
-// ─── WebSocket 服务器 ─────────────────────────────────────────────────────────
-const wss = new WebSocket.Server({
+// 创建 WebSocket 服务器
+const wss = new WebSocket.Server({ 
   server,
   verifyClient: (info) => {
+    // 验证 token
     const protocol = info.req.headers['sec-websocket-protocol'];
-    if (TOKEN && protocol !== TOKEN) return false;
+    if (TOKEN && protocol !== TOKEN) {
+      return false;
+    }
     return true;
   }
 });
 
 wss.on('connection', (ws, req) => {
+  // 如果有 token,设置协议
   if (TOKEN && req.headers['sec-websocket-protocol']) {
     ws.protocol = TOKEN;
   }
+
   handleSession(ws).catch(() => safeCloseWebSocket(ws));
 });
 
@@ -296,41 +160,57 @@ async function handleSession(webSocket) {
   const cleanup = () => {
     if (isClosed) return;
     isClosed = true;
+    
     if (remoteSocket) {
       try { remoteSocket.destroy(); } catch {}
       remoteSocket = null;
     }
+    
     safeCloseWebSocket(webSocket);
   };
 
   const pumpRemoteToWebSocket = (socket) => {
     socket.on('data', (data) => {
       if (!isClosed && webSocket.readyState === WebSocket.OPEN) {
-        try { webSocket.send(data); } catch { cleanup(); }
+        try {
+          webSocket.send(data);
+        } catch (err) {
+          cleanup();
+        }
       }
     });
+
     socket.on('end', () => {
       if (!isClosed) {
         try { webSocket.send('CLOSE'); } catch {}
         cleanup();
       }
     });
-    socket.on('error', cleanup);
+
+    socket.on('error', () => {
+      cleanup();
+    });
   };
 
   const parseAddress = (addr) => {
     if (addr[0] === '[') {
       const end = addr.indexOf(']');
-      return { host: addr.substring(1, end), port: parseInt(addr.substring(end + 2), 10) };
+      return {
+        host: addr.substring(1, end),
+        port: parseInt(addr.substring(end + 2), 10)
+      };
     }
     const sep = addr.lastIndexOf(':');
-    return { host: addr.substring(0, sep), port: parseInt(addr.substring(sep + 1), 10) };
+    return {
+      host: addr.substring(0, sep),
+      port: parseInt(addr.substring(sep + 1), 10)
+    };
   };
 
   const isCFError = (err) => {
     const msg = err?.message?.toLowerCase() || '';
-    return msg.includes('proxy request') ||
-           msg.includes('cannot connect') ||
+    return msg.includes('proxy request') || 
+           msg.includes('cannot connect') || 
            msg.includes('econnrefused') ||
            msg.includes('etimedout');
   };
@@ -342,49 +222,77 @@ async function handleSession(webSocket) {
     for (let i = 0; i < attempts.length; i++) {
       try {
         const targetHost = attempts[i] || host;
-
+        
+        // 使用 DoH 解析域名
         let resolvedHost = targetHost;
-        try {
-          resolvedHost = await resolveHostname(targetHost);
-          console.log(`[Connect] ${targetHost} -> ${resolvedHost}:${port}`);
-        } catch (err) {
-          console.error(`[DNS Error] ${err.message}`);
+        if (!net.isIP(targetHost)) {
+          try {
+            resolvedHost = await resolveDoH(targetHost);
+            console.log(`[Connect] ${targetHost} resolved to ${resolvedHost}`);
+          } catch (err) {
+            console.error(`[DNS Error] Failed to resolve ${targetHost}: ${err.message}`);
+            // 如果解析失败，仍尝试直接连接（系统 DNS 可能会处理）
+          }
         }
-
-        remoteSocket = net.connect({ host: resolvedHost, port, timeout: 10000 });
+        
+        remoteSocket = net.connect({
+          host: resolvedHost,
+          port: port,
+          timeout: 10000
+        });
 
         await new Promise((resolve, reject) => {
           remoteSocket.once('connect', resolve);
           remoteSocket.once('error', reject);
         });
 
-        if (firstFrameData) remoteSocket.write(firstFrameData);
+        // 发送首帧数据
+        if (firstFrameData) {
+          remoteSocket.write(firstFrameData);
+        }
+
         webSocket.send('CONNECTED');
         pumpRemoteToWebSocket(remoteSocket);
         return;
 
       } catch (err) {
+        // 清理失败的连接
         if (remoteSocket) {
           try { remoteSocket.destroy(); } catch {}
           remoteSocket = null;
         }
-        if (!isCFError(err) || i === attempts.length - 1) throw err;
+
+        // 如果不是连接错误或已是最后尝试,抛出错误
+        if (!isCFError(err) || i === attempts.length - 1) {
+          throw err;
+        }
       }
     }
   };
 
   webSocket.on('message', async (data) => {
     if (isClosed) return;
+
     try {
+      // WebSocket 的 data 可能是 Buffer 或 String
       const message = data.toString();
+
       if (message.startsWith('CONNECT:')) {
         const sep = message.indexOf('|', 8);
-        await connectToRemote(message.substring(8, sep), message.substring(sep + 1));
-      } else if (message.startsWith('DATA:')) {
-        if (remoteSocket && !remoteSocket.destroyed) remoteSocket.write(message.substring(5));
-      } else if (message === 'CLOSE') {
+        await connectToRemote(
+          message.substring(8, sep),
+          message.substring(sep + 1)
+        );
+      }
+      else if (message.startsWith('DATA:')) {
+        if (remoteSocket && !remoteSocket.destroyed) {
+          remoteSocket.write(message.substring(5));
+        }
+      }
+      else if (message === 'CLOSE') {
         cleanup();
-      } else if (data instanceof Buffer && remoteSocket && !remoteSocket.destroyed) {
+      }
+      else if (data instanceof Buffer && remoteSocket && !remoteSocket.destroyed) {
         remoteSocket.write(data);
       }
     } catch (err) {
@@ -399,17 +307,16 @@ async function handleSession(webSocket) {
 
 function safeCloseWebSocket(ws) {
   try {
-    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CLOSING) {
+    if (ws.readyState === WebSocket.OPEN || 
+        ws.readyState === WebSocket.CLOSING) {
       ws.close(1000, 'Server closed');
     }
   } catch {}
 }
 
-// ─── 启动 ────────────────────────────────────────────────────────────────────
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Web listening on port ${PORT}`);
   console.log(`Token authentication: ${TOKEN ? 'enabled' : 'disabled'}`);
-  console.log(`DNS strategy: System DNS → DoT fallback (port 853)`);
-  console.log(`DoT Servers: ${DOT_SERVERS.map(s => `${s.name}(${s.host}:${s.port})`).join(', ')}`);
-  console.log(`DNS Cache TTL: ${DNS_CACHE_TTL / 1000}s | Fail TTL: ${DNS_FAIL_TTL / 1000}s`);
+  console.log(`DoH Servers: ${DOH_SERVERS.join(', ')}`);
+  console.log(`DNS Cache TTL: ${DNS_CACHE_TTL / 1000}s`);
 });
