@@ -10,12 +10,9 @@ const CF_FALLBACK_IPS = process.env.PRIP
   ? process.env.PRIP.split(',')
   : ['ProxyIP.JP.CMLiussss.net'];
 
-// DoH 配置（仅系统 DNS 失败时使用）
 const DOH_SERVERS = [
   'https://cloudflare-dns.com/dns-query',
-  'https://dns.google/dns-query',
-  'https://dns.quad9.net/dns-query',
-  'https://dns.alidns.com/dns-query'
+  'https://dns.google/dns-query'
 ];
 
 // 无效 IP 黑名单（不缓存这些）
