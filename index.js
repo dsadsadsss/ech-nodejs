@@ -1,117 +1,39 @@
 const WebSocket = require('ws');
 const net = require('net');
 const http = require('http');
-const https = require('https');
 const dns = require('dns').promises;
 
 const PORT = process.env.PORT || 3000;
 const TOKEN = process.env.TOKEN || '123';
-const CF_FALLBACK_IPS = process.env.PRIP 
-  ? process.env.PRIP.split(',') 
+const CF_FALLBACK_IPS = process.env.PRIP
+  ? process.env.PRIP.split(',')
   : ['ProxyIP.JP.CMLiussss.net'];
-
-// DoH 配置 —— 直接用 IP，避免鸡生蛋问题
-const DOH_SERVERS = [
-  { url: 'https://1.1.1.1/dns-query',   host: 'cloudflare-dns.com' },
-  { url: 'https://8.8.8.8/dns-query',   host: 'dns.google'         },
-  { url: 'https://223.5.5.5/dns-query', host: 'dns.alidns.com'     },
-];
 
 // DNS 缓存
 const dnsCache = new Map();
 const DNS_CACHE_TTL = 300000; // 5分钟
 
-// DoH 解析函数
-async function resolveDoH(hostname) {
-  // 检查缓存
+// DNS 解析（系统 DNS + 缓存）
+async function resolveDNS(hostname) {
+  if (net.isIP(hostname)) return hostname;
+
   const cached = dnsCache.get(hostname);
   if (cached && Date.now() - cached.timestamp < DNS_CACHE_TTL) {
-    console.log(`[DoH Cache Hit] ${hostname} -> ${cached.ip}`);
+    console.log(`[DNS Cache Hit] ${hostname} -> ${cached.ip}`);
     return cached.ip;
   }
 
-  // 如果是 IP 地址，直接返回
-  if (net.isIP(hostname)) {
-    return hostname;
-  }
-
-  console.log(`[DoH Query] Resolving ${hostname}...`);
-
-  // 尝试多个 DoH 服务器
-  for (const dohServer of DOH_SERVERS) {
-    try {
-      const ip = await queryDoH(dohServer, hostname);
-      if (ip) {
-        dnsCache.set(hostname, { ip, timestamp: Date.now() });
-        console.log(`[DoH Success] ${hostname} -> ${ip} (via ${dohServer.url})`);
-        return ip;
-      }
-    } catch (err) {
-      console.error(`[DoH Failed] ${dohServer.url}: ${err.message}`);
-    }
-  }
-
-  // 如果所有 DoH 都失败，回退到系统 DNS
-  console.log(`[DoH Fallback] Using system DNS for ${hostname}`);
+  console.log(`[DNS Query] Resolving ${hostname}...`);
   try {
     const addresses = await dns.resolve4(hostname);
-    if (addresses && addresses.length > 0) {
-      const ip = addresses[0];
-      dnsCache.set(hostname, { ip, timestamp: Date.now() });
-      return ip;
-    }
+    const ip = addresses[0];
+    dnsCache.set(hostname, { ip, timestamp: Date.now() });
+    console.log(`[DNS Success] ${hostname} -> ${ip}`);
+    return ip;
   } catch (err) {
-    console.error(`[System DNS Failed] ${hostname}: ${err.message}`);
+    console.error(`[DNS Failed] ${hostname}: ${err.message}`);
+    throw new Error(`Failed to resolve ${hostname}`);
   }
-
-  throw new Error(`Failed to resolve ${hostname}`);
-}
-
-// 查询 DoH 服务器（用 IP 直连，附带 Host header 解决虚拟主机/SNI）
-function queryDoH({ url, host }, hostname) {
-  return new Promise((resolve, reject) => {
-    const parsedUrl = new URL(`${url}?name=${encodeURIComponent(hostname)}&type=A`);
-
-    const options = {
-      hostname: parsedUrl.hostname, // 直接是 IP
-      path: parsedUrl.pathname + parsedUrl.search,
-      headers: {
-        'Accept': 'application/dns-json',
-        'Host': host,
-      },
-      timeout: 5000,
-      rejectUnauthorized: false, // IP 直连时证书 hostname 不匹配，需关闭校验
-    };
-
-    https.get(options, (res) => {
-      let data = '';
-
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-
-          if (json.Answer && json.Answer.length > 0) {
-            for (const answer of json.Answer) {
-              if (answer.type === 1) { // A 记录
-                resolve(answer.data);
-                return;
-              }
-            }
-          }
-
-          reject(new Error('No A record found'));
-        } catch (err) {
-          reject(new Error(`JSON parse error (got: ${data.substring(0, 80)})`));
-        }
-      });
-    }).on('error', reject).on('timeout', () => {
-      reject(new Error('DoH query timeout'));
-    });
-  });
 }
 
 // 创建 HTTP 服务器
@@ -123,7 +45,11 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       cacheSize: dnsCache.size,
-      dohServers: DOH_SERVERS.map(s => s.url),
+      cacheEntries: Array.from(dnsCache.entries()).map(([k, v]) => ({
+        hostname: k,
+        ip: v.ip,
+        expiresIn: Math.round((v.timestamp + DNS_CACHE_TTL - Date.now()) / 1000) + 's',
+      })),
     }));
   } else {
     res.writeHead(404);
@@ -224,8 +150,8 @@ async function handleSession(webSocket) {
         let resolvedHost = targetHost;
         if (!net.isIP(targetHost)) {
           try {
-            resolvedHost = await resolveDoH(targetHost);
-            console.log(`[Connect] ${targetHost} resolved to ${resolvedHost}`);
+            resolvedHost = await resolveDNS(targetHost);
+            console.log(`[Connect] ${targetHost} -> ${resolvedHost}:${port}`);
           } catch (err) {
             console.error(`[DNS Error] Failed to resolve ${targetHost}: ${err.message}`);
           }
@@ -279,7 +205,6 @@ async function handleSession(webSocket) {
         );
       } else if (message.startsWith('DATA:')) {
         if (remoteSocket && !remoteSocket.destroyed) {
-          // 修复：写入 Buffer 而非字符串，避免编码问题
           remoteSocket.write(Buffer.from(message.substring(5)));
         }
       } else if (message === 'CLOSE') {
@@ -309,6 +234,5 @@ function safeCloseWebSocket(ws) {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Web listening on port ${PORT}`);
   console.log(`Token authentication: ${TOKEN ? 'enabled' : 'disabled'}`);
-  console.log(`DoH Servers: ${DOH_SERVERS.map(s => s.url).join(', ')}`);
   console.log(`DNS Cache TTL: ${DNS_CACHE_TTL / 1000}s`);
 });
